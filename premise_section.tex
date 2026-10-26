@@ -1,0 +1,82 @@
+% Paste into Overleaf in place of the current Premise section. Requires amsmath.
+% Matches aircraft.py as built. Items marked TODO need your group's decision.
+
+\section{The Premise}
+
+\subsection{The Question}
+An airliner flying a fixed route wants to burn as little fuel as possible. Two choices made
+early in the flight dominate the answer: how steeply it climbs (flight-path angle $\gamma$)
+and how high it cruises ($h_{\text{cruise}}$). A steep climb reaches thin air quickly, where
+parasitic drag is low, but demands high thrust. A shallow climb is gentle but spends a long time
+at low altitude, where drag is high. A high cruise altitude lowers parasitic drag but raises the
+lift coefficient and so the induced drag, and the Mach limit caps the speed. These effects compete, so we
+expect an optimum.
+
+\textbf{Question.} For flights from Chicago O'Hare (ORD) to New York JFK ($1{,}191$~km),
+Copenhagen ($6{,}873$~km) and Hong Kong ($12{,}543$~km), which climb angle $\gamma$ and cruise
+altitude $h_{\text{cruise}}$ minimize the total fuel burned, and how does the optimum shift with
+trip length?
+
+\subsection{The Model}
+The aircraft is a point mass in a vertical plane with state $\mathbf{y}=[V,\,h,\,x,\,m]^\top$
+(airspeed, altitude, ground distance, mass). It starts at $h=0$ and flies two phases:
+a \textbf{climb} at constant $\gamma$ until $h=h_{\text{cruise}}$, then a level \textbf{cruise}
+($\gamma=0$) until $x=X$. Descent and landing are neglected, and every route starts at the same takeoff
+mass $m_0$.
+
+\subsubsection{Atmosphere}
+We use the NASA Glenn two-layer model ($h$ in m, $T$ in $^\circ$C, $p$ in kPa),
+\begin{align}
+  h \le 11000: \quad & T = 15.04 - 0.00649\,h, \quad
+     p = 101.29\left(\tfrac{T+273.1}{288.08}\right)^{5.256}, \\
+  h > 11000: \quad & T = T_{11},\quad p = p_{11}\,e^{-0.000157\,(h-11000)}, \qquad
+     \rho = \frac{p}{0.2869\,(T+273.1)},
+\end{align}
+where $T_{11}$ and $p_{11}$ are the troposphere values at $11$~km. This differs from the published
+fit by under $0.2\%$ and makes $T$, $p$ and $\rho$ continuous at $11$~km. (The published fit has a $0.1\%$ density jump, which limits
+the order of any integrator for trips crossing it.)
+
+\subsubsection{Aerodynamics, Speed Schedule and Thrust}
+\begin{align}
+  C_L &= \frac{2\,m\,g_0\cos\gamma}{\rho V^2 S}, \qquad
+  C_D = C_{D0} + k\,C_L^2, \qquad
+  D = \tfrac12\rho V^2 S\,C_D .
+\end{align}
+The pilot flies the speed that minimizes drag at the current altitude and mass, limited by Mach $M_{\max}$:
+\begin{equation}
+  V_{\text{tgt}}(h,m) = \min\!\left\{\sqrt{\frac{2mg_0}{\rho S}}\left(\frac{k}{C_{D0}}\right)^{1/4},\; M_{\max}\,a(h)\right\}.
+\end{equation}
+Thrust holds $\gamma$ and tracks this speed with a proportional speed-hold law, and fuel flow follows thrust:
+\begin{equation}
+  T = D + m g_0\sin\gamma + m K\,(V_{\text{tgt}} - V), \qquad \dot m_{\text{fuel}} = \frac{T}{I_{sp}\,g_0}.
+\end{equation}
+
+\subsubsection{The Initial Value Problem}
+\begin{align}
+  \dot V &= \frac{T-D}{m} - g_0\sin\gamma, &
+  \dot h &= V\sin\gamma, &
+  \dot x &= V\cos\gamma, &
+  \dot m &= -\frac{T}{I_{sp}\,g_0},
+\end{align}
+with $\mathbf{y}(0)=[V_{\text{tgt}}(0,m_0),\,0,\,0,\,m_0]^\top$.
+The fuel burned is $m_0 - m(t_{\text{end}})$.
+
+\subsubsection{Feasibility Constraints (masking)}
+A $(\gamma,h_{\text{cruise}})$ pair is \emph{infeasible} if, at any time in the flight, the required thrust exceeds $T_{\max}$,
+the lift coefficient exceeds $C_{L,\max}$, or the fuel runs out ($m \le m_{\text{dry}}$). Infeasible cases are masked out of
+the results.
+
+\subsection{Why Numerical Methods Are Needed}
+In the climb, $\rho$ depends on $h(t)$, and $C_L$, $D$ and $T$ depend nonlinearly on the evolving $V$, $h$ and $m$,
+so the system has no closed-form solution. Only special cases do (level cruise at fixed speed, and a linear
+constant-density limit); we use those as independent checks on the code. Answering the premise needs hundreds of simulations
+(one per $(\gamma,h_{\text{cruise}},X)$ combination), so accuracy per unit cost matters.
+
+\subsection{Parameters}
+\begin{itemize}
+  \item \textbf{Varied:} $\gamma$, $h_{\text{cruise}}$, trip distance $X$.
+  \item \textbf{Fixed (illustrative widebody, not calibrated to any real aircraft):}
+        $m_0 = 400$~t, $m_{\text{dry}} = 210$~t, $S = 550$~m$^2$, $C_{D0}=0.020$, $k=0.045$, $I_{sp}=6000$~s,
+        $T_{\max}=600$~kN, $C_{L,\max}=1.2$, $M_{\max}=0.85$, $K = 0.05$~s$^{-1}$.
+  \item \textbf{Output:} total fuel burned $\Delta m_{\text{fuel}}(\gamma,h_{\text{cruise}};X)$.
+\end{itemize}
